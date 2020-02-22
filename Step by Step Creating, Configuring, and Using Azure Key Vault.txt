@@ -1,0 +1,62 @@
+Step by Step Creating, Configuring, and Using Azure Key Vault
+
+Create Azure Key Vault Instance  
+1. Log into the portal with a Global Admin Account
+2.In The Top right had corner Click on cloud Shell Or log in through powershell AzureRm or AZ Modules or Azure Cli
+3.  Get-AzureRmResourceGroup
+ 
+kv1
+ 
+3.  Then select PowerShell for the command type. 
+4.  Then type Get-AzureRmResourceGroup to list down resource groups so you can use an existing resource group to associate to your key 
+5. If you want to create a completely new key vault un the following:
+New-AzureRmResourceGroup -Name RGName -Location WestUS
+ 
+6. Create the Key Vault by running the following :
+ New-AzureRmKeyVault -VaultName '%KeyVaultName%' -ResourceGroupName '%whatevertheresourcegroupname is ' -Location 'whatever location
+
+ 7.  Check settings by runnign:
+Get-AzureRmKeyVault "Rebel-KVault1"
+ 
+  
+8. Create Access Policy for the key vault: 
+Set-AzureRmKeyVaultAccessPolicy -VaultName '%Vaultname%' -UserPrincipalName 'user1@$whatvername%live.onmicrosoft.com' -PermissionsToKeys create,delete,list -PermissionsToSecrets set,list,delete -PassThru
+ 
+Set permissions for application to retrieve secrets or keys: 
+ 
+Set-AzureRmKeyVaultAccessPolicy -VaultName 'Rebel-KVault1' -ServicePrincipalName 'http://crm.rebeladmin.com' -PermissionsToSecrets Get
+ 
+Key Management
+ 
+Now we have a vault up and running. ==>Next Within Azure Portal 
+
+1. Go To access Key vault feature in portal, go to Azure Portal > All Services > Key vaults
+ 
+ 
+2,  Then click on the relevant key vault from the list 
+ 
+
+3) Then it will load new window. Go ahead and add a secret. To do that click on the Secrets option. 
+ 
+ 
+4) Then click on Generate/Import
+ 
+ 
+5) Then in the form "fill the relevant info."" Value defines the secret. After put relevant info click on create. 
+ 
+ 
+6) If you need to delete a secret, click on the relevant secret from the list.
+ 
+ 
+7) Then click on Delete. 
+ 
+ 
+8) We also can generate/import certificates for use. In order to do so click on Certificates from the list.
+ 
+9) Then click on Generate/Import 
+ 
+10) From the form, using Generate option we can create self-signed certificate. 
+ 
+11) Using Import option, we can import certificates in .PFX format. In the form, Upload Certificate File is the path for the .PFX file. You can use browse option to define the path. We can provide the PFX password under Password field. Once form is done, click on Create. 
+ 
+Hope now you have understanding about Azure key vault and how to use it. 
