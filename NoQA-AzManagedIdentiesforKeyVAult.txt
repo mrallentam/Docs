@@ -1,0 +1,108 @@
+How to use managed identities for App Service and Azure Functions
+
+Import-module az
+login azaccount
+
+---Create a web application using Azure PowerShell. 
+# Create a resource group.
+New-AzResourceGroup -Name myResourceGroup -Location $location
+
+# Create an App Service plan in Free tier.
+New-AzAppServicePlan -Name $webappname -Location $location -ResourceGroupName myResourceGroup -Tier Free
+
+# Create a web app.
+New-AzWebApp -Name $webappname -Location $location -AppServicePlan $webappname -ResourceGroupName myResourceGroup
+
+----Run the Set-AzWebApp -AssignIdentity command to create the identity for this application:
+Set-AzWebApp -AssignIdentity $true -Name $webappname -ResourceGroupName myResourceGroup
+
+-----Obtaining tokens for Azure resources With Rest Method
+$resourceURI = "https://<AAD-resource-URI-for-resource-to-obtain-token>"
+$tokenAuthURI = $env:MSI_ENDPOINT + "?resource=$resourceURI&api-version=2017-09-01"
+$tokenResponse = Invoke-RestMethod -Method Get -Headers @{"Secret"="$env:MSI_SECRET"} -Uri $tokenAuthURI
+$accessToken = $tokenResponse.access_token
+
+----Secure access to a key vault
+----Data plane and access policies
+
+New-AzRoleAssignment -ObjectId (Get-AzADGroup -SearchString 'Contoso Security Team')[0].Id -RoleDefinitionName "key vault Contributor" -ResourceGroupName ContosoAppRG
+New-AzRoleAssignment -ObjectId (Get-AzADGroup -SearchString 'Contoso Security Team')[0].Id -RoleDefinitionName "User Access Administrator" -ResourceGroupName ContosoAppRG
+
+###
+##The security team creates a key vault and sets up logging and access permissions. 
+# Create a key vault and enable logging
+$sa = Get-AzStorageAccount -ResourceGroup ContosoAppRG -Name contosologstorage
+$kv = New-AzKeyVault -Name ContosoKeyVault -ResourceGroup ContosoAppRG -SKU premium -Location 'westus' -EnabledForDeployment
+Set-AzDiagnosticSetting -ResourceId $kv.ResourceId -StorageAccountId $sa.Id -Enabled $true -Category AuditEvent
+
+# Set up data plane permissions for the Contoso Security Team role
+Set-AzKeyVaultAccessPolicy -VaultName ContosoKeyVault -ObjectId (Get-AzADGroup -SearchString 'Contoso Security Team')[0].Id -PermissionsToKeys backup,create,delete,get,import,list,restore -PermissionsToSecrets get,list,set,delete,backup,restore,recover,purge
+
+# Set up management plane permissions for the Contoso App DevOps role
+# Create the new role from an existing role
+$devopsrole = Get-AzRoleDefinition -Name "Virtual Machine Contributor"
+$devopsrole.Id = $null
+$devopsrole.Name = "Contoso App DevOps"
+$devopsrole.Description = "Can deploy VMs that need secrets from a key vault"
+$devopsrole.AssignableScopes = @("/subscriptions/<SUBSCRIPTION-GUID>")
+
+# Add permissions for the Contoso App DevOps role so members can deploy VMs with secrets deployed from key vaults
+$devopsrole.Actions.Add("Microsoft.KeyVault/vaults/deploy/action")
+New-AzRoleDefinition -Role $devopsrole
+
+# Assign the new role to the Contoso App DevOps security group
+New-AzRoleAssignment -ObjectId (Get-AzADGroup -SearchString 'Contoso App Devops')[0].Id -RoleDefinitionName "Contoso App Devops" -ResourceGroupName ContosoAppRG
+
+# Set up data plane permissions for the Contoso App Auditors role
+###Below example:  Our defined custom roles are assignable only to the subscription where the ContosoAppRG resource group is created. To use a custom role for other projects in other subscriptions, add other subscriptions to the scope for the role.
+For our DevOps staff, the custom role assignment for the key vault deploy/action permission is scoped to the resource group. Only VMs created in the ContosoAppRG resource group are allowed access to the secrets (TLS/SSL and bootstrap certificates). VMs created in other resource groups by a DevOps member can't access these secrets, even if the VM has the secret URIs.
+
+# Create a key vault and enable logging
+$sa = Get-AzStorageAccount -ResourceGroup ContosoAppRG -Name contosologstorage
+$kv = New-AzKeyVault -Name ContosoKeyVault -ResourceGroup ContosoAppRG -SKU premium -Location 'westus' -EnabledForDeployment
+Set-AzDiagnosticSetting -ResourceId $kv.ResourceId -StorageAccountId $sa.Id -Enabled $true -Category AuditEvent
+
+# Set up data plane permissions for the Contoso Security Team role
+Set-AzKeyVaultAccessPolicy -VaultName ContosoKeyVault -ObjectId (Get-AzADGroup -SearchString 'Contoso Security Team')[0].Id -PermissionsToKeys backup,create,delete,get,import,list,restore -PermissionsToSecrets get,list,set,delete,backup,restore,recover,purge
+
+# Set up management plane permissions for the Contoso App DevOps role
+# Create the new role from an existing role
+$devopsrole = Get-AzRoleDefinition -Name "Virtual Machine Contributor"
+$devopsrole.Id = $null
+$devopsrole.Name = "Contoso App DevOps"
+$devopsrole.Description = "Can deploy VMs that need secrets from a key vault"
+$devopsrole.AssignableScopes = @("/subscriptions/<SUBSCRIPTION-GUID>")
+
+# Add permissions for the Contoso App DevOps role so members can deploy VMs with secrets deployed from key vaults
+$devopsrole.Actions.Add("Microsoft.KeyVault/vaults/deploy/action")
+New-AzRoleDefinition -Role $devopsrole
+
+# Assign the new role to the Contoso App DevOps security group
+New-AzRoleAssignment -ObjectId (Get-AzADGroup -SearchString 'Contoso App Devops')[0].Id -RoleDefinitionName "Contoso App Devops" -ResourceGroupName ContosoAppRG
+
+# Set up data plane permissions for the Contoso App Auditors role
+Set-AzKeyVaultAccessPolicy -VaultName ContosoKeyVault -ObjectId (Get-AzADGroup -SearchString 'Contoso App Auditors')[0].Id -PermissionsToKeys list -PermissionsToSecrets list
+
+---Provide Key Vault authentication with an access control policy
+#Create new Azure Service Principal
+New-AzADServicePrincipal -DisplayName mySP
+
+#Find Azure AD groups and users
+Get-AzADGroup -SearchString <search-string>
+Get-AzAdUser -UserPrincipalName <email-address-of-user>
+#Creating and adding users to azure ad group
+New-AzADGroup -DisplayName <your-group-display-name> -MailNickName <your-group-mail-nickname>
+
+#Give the principal access to your key vault
+Set-AzKeyVaultAccessPolicy –VaultName <your-key-vault-name> -PermissionsToKeys create,decrypt,delete,encrypt,get,list,unwrapKey,wrapKey -PermissionsToSecrets get,list,set,delete -ApplicationId <Id>
+
+#Find the objectIds of your applications and users
+Get-AzADServicePrincipal -SearchString <search-string>
+
+#Add your applications and users to the group
+Add-AzADGroupMember -TargetGroupObjectId <groupId> -MemberObjectId <objectId>
+
+#Give the AD group access to your key vault, Get-help Set-AzKeyVaultAccessPolicy -full or -details for syntax
+Set-AzKeyVaultAccessPolicy
+
+
