@@ -1,0 +1,8 @@
+ $servers="2019_1","2019_2"
+Invoke-Command -ComputerName $servers -ScriptBlock {
+    #Grab updates
+    $ScanResult=Invoke-CimMethod -Namespace "root/Microsoft/Windows/WindowsUpdate" -ClassName "MSFT_WUOperations" -MethodName ScanForUpdates -Arguments @{SearchCriteria="IsInstalled=0 AND AutoSelectOnWebSites=1"}
+    if ($ScanResult.Updates){
+        Invoke-CimMethod -Namespace "root/Microsoft/Windows/WindowsUpdate" -ClassName "MSFT_WUOperations" -MethodName InstallUpdates -Arguments @{Updates=$ScanResult.Updates}
+    }
+} 
