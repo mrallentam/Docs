@@ -1,0 +1,33 @@
+Requests Catered by the Domain Controller:
+
+index=wineventlog host=*C9* | chart count by dest_nt_host
+
+
+
+Failed Login count by user on C9* domain:
+
+index=wineventlog dest_nt_domain=c9* EventCode=4625| chart count by user
+
+ 
+
+Successful user logons:
+
+index=wineventlog EventCode=4624 host=*C9* user!=*$ | chart count by user
+
+ 
+
+Successful logoffs:
+
+index=wineventlog EventCode=4634 host=*C9* user!=*$ | chart count by user
+
+
+
+Failed Logins on c9 domain:
+
+index=wineventlog dest_nt_domain=c9* EventCode=4625| table id, user, subject,src_ip, ComputerName,dest_nt_domain,dest_nt_domain, Logon_Type,subject, Failure_Reason
+
+
+
+Successful escalations to a privileged user- SID History event added to an account(Not tested):
+
+index=wineventlog EventCode=4765 host=*ERS* (dest_nt_domain!=ERS AND dest_nt_domain!="NT Authority" AND dest_nt_domain!=ERS.equifax.com) user!=*$ | table dest_nt_domain,Date, src_user, user, host, _time
