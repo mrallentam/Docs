@@ -1,0 +1,124 @@
+Azure - Monitor Kusto Queries
+
+Active Users List
+
+let CompletedIDs = WVDConnections
+| where State == "Completed"
+| project CorrelationId;
+WVDConnections
+| where CorrelationId !in (CompletedIDs)
+| where State != "Started"
+| project UserName, State, TimeGenerated
+
+\\USERS WITH SESSIONS DURATION - LAST 7 DAYS
+WVDConnections
+| where TimeGenerated > ago(7d)
+| where State == "Connected"
+| project CorrelationId , UserName, ConnectionType , StartTime=TimeGenerated
+| join (WVDConnections
+    | where State == "Completed"
+    | project EndTime=TimeGenerated, CorrelationId)
+    on CorrelationId
+| extend SessionDuration = EndTime - StartTime
+| summarize Duration = sum(SessionDuration) by UserName, ConnectionType
+| sort by Duration desc
+
+ 
+
+\\Active sessions on Session Hosts
+
+Perf
+| where ObjectName == "Terminal Services"
+| where CounterName == "Active Sessions"
+| summarize arg_max(TimeGenerated, *) by Computer
+| project Computer, CounterName, CounterValue
+
+ 
+ 
+\\Session Information by date
+
+WVDConnections
+| where TimeGenerated > ago(7d)
+| where State == "Connected" 
+| project CorrelationId , UserName, ConnectionType , StartTime=TimeGenerated, SessionHostName 
+| join (WVDConnections 
+    | where State == "Completed" 
+    | project EndTime=TimeGenerated, CorrelationId) 
+    on CorrelationId 
+
+| project UserName,ConnectionType,StartTime,EndTime,SessionHostName
+| sort by StartTime
+
+
+
+\\Admin activities by time
+WVDManagement
+| summarize Count=count() by bin(TimeGenerated,15)
+| render scatterchart
+
+
+
+\\Host Performance – CPU
+Perf
+| where ObjectName == "Processor" and CounterName == "% Processor Time"
+| summarize AggregatedValue = avg(CounterValue) by bin(TimeGenerated, 10m), Computer, InstanceName
+
+
+
+\\Host Performance – Memory
+Perf
+| where ObjectName == "Memory" and CounterName == "% Committed Bytes In Use"
+| summarize AggregatedValue = avg(CounterValue) by bin(TimeGenerated, 10m), Computer, InstanceName
+
+
+
+\\Host Performance – Network
+
+Perf
+| where ObjectName == "Network Interface"
+| summarize AggregatedValue = avg(CounterValue) by bin(TimeGenerated, 10m), Computer, InstanceName, CounterName
+
+
+
+\\Host Performance – Disk
+Perf
+| where ObjectName == "LogicalDisk" and CounterName == "% Free Space"
+| where InstanceName <> "_Total"
+| summarize AggregatedValue = avg(CounterValue) by bin(TimeGenerated, 10m), Computer, InstanceName
+
+
+
+\\Processor utilization per user:
+Perf
+| where ObjectName == "Process"
+| join
+(
+VMProcess
+| where UserName !contains "system" and UserName !contains "service"
+| extend InstanceName = ExecutableName
+| project TimeGenerated, InstanceName, Computer, UserName, UserDomain
+)
+on InstanceName
+| summarize AggregatedValue = avg(CounterValue) by bin(TimeGenerated, 10m), InstanceName, CounterName, UserName, Computer
+
+
+
+
+
+\\Failed Connections with details
+
+WVDConnections
+| where State =~ "Started" and Type =~"WVDConnections"
+| extend Multi=split(_ResourceId, "/") | extend CState=iff(SessionHostOSVersion=="<>","Failure","Success"
+| where CState =~"Failure"
+| order by TimeGenerated desc
+| where State =~ "Started" | extend Multi=split(_ResourceId, "/")
+| project ResourceAlias, ResourceGroup=Multi[4], HostPool=Multi[8], SessionHostName ,UserName ,CState=iff(SessionHostOSVersion=="<>","Failure","Success"), CorrelationId, TimeGenerated
+| join kind= leftouter (
+    WVDErrors
+) on CorrelationId
+| extend DurationFromLogon=datetime_diff("Second",TimeGenerated1,TimeGenerated)
+| project  TimeStamp=TimeGenerated, DurationFromLogon, UserName, ResourceAlias ,SessionHost=SessionHostName ,
+Source ,CodeSymbolic , ErrorMessage=Message, ErrorCode=Code, ErrorSource=Source ,ServiceError, CorrelationId
+| order by TimeStamp desc
+
