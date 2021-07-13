@@ -1,0 +1,40 @@
+#KUSTO  AZURE RESOURCE HEALTH QUERIES
+AzureActivity
+| where CategoryValue == 'ResourceHealth'
+| where ActivityStatusValue <> "Resolved"
+| extend p = parse_json(Properties)
+| evaluate bag_unpack(p, 'Properties_')
+| extend ep = parse_json(Properties_eventProperties)
+| evaluate bag_unpack(ep, 'EventProperties_' )
+| distinct EventProperties_cause
+
+
+AzureActivity
+| where CategoryValue == 'ResourceHealth'
+| where ActivityStatusValue <> "Resolved"
+| extend p = parse_json(Properties)
+| evaluate bag_unpack(p, 'Properties_')
+| extend ep = parse_json(Properties_eventProperties)
+| evaluate bag_unpack(ep, 'EventProperties_' )
+
+
+titles for resource health issues 
+AzureActivity
+| where CategoryValue == 'ResourceHealth'
+| where ActivityStatusValue <> "Resolved"
+| extend p = parse_json(Properties)
+| evaluate bag_unpack(p, 'Properties_')
+| extend ep = parse_json(Properties_eventProperties)
+| evaluate bag_unpack(ep, 'EventProperties_' )
+| distinct EventProperties_title
+
+
+track unique titles, causes per resource
+AzureActivity
+| where CategoryValue == 'ResourceHealth'
+| where ActivityStatusValue <> "Resolved"
+| extend p = parse_json(Properties)
+| evaluate bag_unpack(p, 'Properties_')
+| extend ep = parse_json(Properties_eventProperties)
+| evaluate bag_unpack(ep, 'EventProperties_' )
+| distinct _ResourceId, EventProperties_title, EventProperties_cause

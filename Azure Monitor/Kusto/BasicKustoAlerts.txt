@@ -1,0 +1,16 @@
+//KUSTO BASIC ALERT QUERIES
+
+
+Heartbeat
+| where Computer startswith 'srv'
+| distinct _ResourceId
+
+Perf 
+| where ObjectName =~ 'LogicalDisk' and CounterName =~ '% Free Space' and InstanceName !~ '_Total'
+| where _ResourceId in (MyServers)
+| summarize AggregatedValue = avg(CounterValue) by _ResourceId, VolumeName = InstanceName, bin(TimeGenerated, 5m)
+
+Perf 
+| union workspace("xxxxxxxxxxxxxxxxxxxxxxxxxxxx").Perf
+| where ObjectName =~ 'LogicalDisk' and CounterName =~ '% Free Space' and InstanceName !~ '_Total' | summarize AggregatedValue = avg(CounterValue) by _ResourceId, VolumeName = InstanceName, bin(TimeGenerated, 5m)
+
